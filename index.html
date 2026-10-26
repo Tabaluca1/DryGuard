@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DryBalkon - Regenwarner</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #121212;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+      transition: background-color 0.5s ease;
+    }
+    body.raining {
+      background-color: #b71c1c; /* Rot bei Regen */
+    }
+    .card {
+      background: #1e1e1e;
+      padding: 30px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      max-width: 360px;
+      width: 90%;
+    }
+    h1 {
+      font-size: 22px;
+      margin-bottom: 10px;
+    }
+    p {
+      color: #aaa;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .status {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 20px 0;
+      padding: 12px;
+      border-radius: 8px;
+      background: #2c2c2c;
+    }
+    button {
+      background-color: #222;
+      color: white;
+      border: none;
+      padding: 14px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 10px;
+      transition: background-color 0.3s;
+    }
+    button.active {
+      background-color: #1b5e20; /* Grün wenn aktiv */
+    }
+    .rain-details {
+      font-size: 13px;
+      color: #888;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>🧺 DryBalkon</h1>
+    <p>Prüft das Wetter in Hamburg und alarmiert dich, sobald Regen einsetzt.</p>
+    
+    <div id="status-box" class="status" style="color: #ff9800;">Warte auf Aktivierung...</div>
+    
+    <!-- Button zum Entsperren des Tons und Starten der Überwachung -->
+    <button id="toggle-btn" onclick="toggleWatcher()">Überwachung & Ton aktivieren</button>
+    
+    <div class="rain-details" id="details">Letzter Check: Noch nicht gestartet</div>
+  </div>
+
+  <script>
+    // Koordinaten für Hamburg (Straße 33, 22769 Hamburg)
+    const lat = 53.5606;
+    const lon = 9.9439;
+    
+    let isRunning = false;
+    let watchInterval = null;
+    let isAudioEnabled = false;
+
+    // Web Audio API für sicheres Abspielen auf Smartphones (ohne Timeout-Sperre)
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const audioContext = new AudioCtx();
+    let isAudioUnlocked = false;
+    let alarmBuffer = null;
+
+    // alarm.mp3 im Hintergrund vorladen
+    fetch('alarm.mp3')
+      .then(res => res.arrayBuffer())
+      .then(buffer => audioContext.decodeAudioData(buffer))
+      .then(decoded => { alarmBuffer = decoded; })
+      .catch(err => console.error("Fehler beim Vorladen der alarm.mp3:", err));
+
+    // Stummer Audioloop zum Wachhalten des iOS/Android-Audio-Kontexts
+    function unlockAudioSilent() {
+      if (isAudioUnlocked) return;
+      try {
+        const buffer = audioContext.createBuffer(1, 22050, 22050);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        source.connect(audioContext.destination);
+        source.start(0);
+
+        if (audioContext.state === 'suspended') audioContext.resume();
+        isAudioUnlocked = true;
+      } catch (e) {
+        console.warn("Audio-Unlock fehlgeschlagen:", e);
+      }
+    }
+
+    function toggleWatcher() {
+      const btn = document.getElementById('toggle-btn');
+      const statusBox = document.getElementById('status-box');
+
+      if (!isRunning) {
+        // --- EINSCHALTEN ---
+        unlockAudioSilent();
+        isAudioEnabled = true;
+        isRunning = true;
+
+        btn.textContent = "Überwachung aktiv ✓";
+        btn.classList.add('active');
+        statusBox.style.color = "#4CAF50";
+        statusBox.textContent = "Status: Alles trocken (läuft)";
+
+        checkWeather();
+        watchInterval = setInterval(checkWeather, 300000); // Alle 5 Minuten
+      } else {
+        // --- AUSSCHALTEN ---
+        clearInterval(watchInterval);
+        isRunning = false;
+        isAudioEnabled = false;
+
+        btn.textContent = "Überwachung & Ton aktivieren";
+        btn.classList.remove('active');
+        statusBox.style.color = "#ff9800";
+        statusBox.textContent = "Status: Pausiert";
+      }
+    }
+
+    function checkWeather() {
+      const statusBox = document.getElementById('status-box');
+      const details = document.getElementById('details');
+      const now = new Date().toLocaleTimeString();
+
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=precipitation,rain`;
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          const currentRain = data.current.precipitation; // Niederschlag in mm
+          details.textContent = `Letzter Check: ${now} (Niederschlag: ${currentRain} mm)`;
+
+          if (currentRain > 0) {
+            document.body.classList.add('raining');
+            statusBox.style.color = "#fff";
+            statusBox.textContent = "🚨 REGEN ERKANNT! WÄSCHE REIN!";
+            playAlarmSound();
+          } else {
+            document.body.classList.remove('raining');
+            statusBox.style.color = "#4CAF50";
+            statusBox.textContent = "Status: Alles trocken ☀️";
+          }
+        })
+        .catch(error => {
+          console.error("Fehler beim Wetter-Abruf:", error);
+          details.textContent = `Letzter Check: ${now} (Fehler beim Laden)`;
+        });
+    }
+
+    function playAlarmSound() {
+      if (!isAudioEnabled) return;
+
+      if (audioContext.state === 'suspended') audioContext.resume();
+      
+      if (alarmBuffer) {
+        const source = audioContext.createBufferSource();
+        source.buffer = alarmBuffer;
+        source.connect(audioContext.destination);
+        source.start(0);
+      } else {
+        // Fallback falls MP3 noch lädt
+        new Audio('alarm.mp3').play().catch(() => {});
+      }
+    }
+  </script>
+
+</body>
+</html>
