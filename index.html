@@ -13,18 +13,19 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
+      justify-content: space-between;
+      min-height: 100vh;
       margin: 0;
       text-align: center;
       transition: background-color 0.5s ease;
+      padding: 20px 0;
     }
     body.raining {
       background-color: #b71c1c; /* Rot bei Regen */
     }
     .card {
       background: #1e1e1e;
-      padding: 30px;
+      padding: 24px;
       border-radius: 16px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.5);
       max-width: 360px;
@@ -32,72 +33,118 @@
     }
     h1 {
       font-size: 22px;
-      margin-bottom: 10px;
+      margin-bottom: 5px;
     }
     p {
       color: #aaa;
-      font-size: 14px;
-      margin-bottom: 20px;
+      font-size: 13px;
+      margin-bottom: 15px;
     }
     .status {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: bold;
-      margin: 20px 0;
+      margin: 15px 0;
       padding: 12px;
       border-radius: 8px;
       background: #2c2c2c;
     }
+    .coords-box {
+      background: #252525;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 12px;
+      text-align: left;
+    }
+    .coords-box label {
+      display: block;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .coords-inputs {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    input {
+      width: 100%;
+      background: #121212;
+      border: 1px solid #444;
+      color: #fff;
+      padding: 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
     button {
-      background-color: #222;
+      background-color: #1b5e20;
       color: white;
       border: none;
-      padding: 14px 20px;
-      font-size: 16px;
+      padding: 10px 16px;
+      font-size: 13px;
       font-weight: bold;
-      border-radius: 8px;
+      border-radius: 6px;
       cursor: pointer;
       width: 100%;
-      margin-top: 10px;
+      margin-top: 8px;
       transition: background-color 0.3s;
     }
-    button.active {
-      background-color: #1b5e20; /* Grün wenn aktiv */
+    button:hover {
+      background-color: #2e7d32;
     }
     .rain-details {
-      font-size: 13px;
+      font-size: 12px;
       color: #888;
-      margin-top: 15px;
+      margin-top: 12px;
+    }
+    footer {
+      font-size: 11px;
+      color: #666;
     }
   </style>
 </head>
-<body>
+<body onclick="initAudioUserInteraction()">
 
   <div class="card">
     <h1>☔ DryGuard</h1>
-    <p>Prüft das Wetter in Hamburg und alarmiert dich, sobald Regen einsetzt.</p>
+    <p>Automatische Regen-Frühwarnung</p>
     
-    <div id="status-box" class="status" style="color: #ff9800;">Warte auf Aktivierung...</div>
+    <div id="status-box" class="status" style="color: #4CAF50;">Überwachung aktiv...</div>
+    <div id="rain-time-info" style="font-size: 13px; color: #38bdf8; font-weight: bold; margin-bottom: 10px;">Prüfe Wetterdaten...</div>
     
-    <!-- Button zum Entsperren des Tons und Starten der Überwachung -->
-    <button id="toggle-btn" onclick="toggleWatcher()">Überwachung & Ton aktivieren</button>
-    
-    <div class="rain-details" id="details">Letzter Check: Noch nicht gestartet</div>
+    <div class="rain-details" id="details">Letzter Check: Lädt...</div>
+
+    <!-- Koordinaten-Einstellung -->
+    <div class="coords-box">
+      <label>Aktiver Standort (Lat / Lon):</label>
+      <div id="coords-display" style="font-family: monospace; color: #ccc;">53.5606, 9.9439</div>
+      <div class="coords-inputs">
+        <input type="number" step="0.0001" id="lat-input" placeholder="Lat">
+        <input type="number" step="0.0001" id="lon-input" placeholder="Lon">
+      </div>
+      <button onclick="updateCoordinates(event)">Standort übernehmen</button>
+    </div>
   </div>
 
+  <footer>
+    DryGuard - Version 1.0
+  </footer>
+
   <script>
-    // Koordinaten für Hamburg (Straße 33, 22769 Hamburg)
-    const lat = 53.5606;
-    const lon = 9.9439;
+    // Standardkoordinaten für Hamburg (Straße 33, 22769 Hamburg)
+    let lat = 53.5606;
+    let lon = 9.9439;
     
-    let isRunning = false;
     let watchInterval = null;
     let isAudioEnabled = false;
 
-    // Web Audio API für sicheres Abspielen auf Smartphones (ohne Timeout-Sperre)
+    // Web Audio API Vorbereitung
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     const audioContext = new AudioCtx();
-    let isAudioUnlocked = false;
     let alarmBuffer = null;
+
+    // Inputs beim Start befüllen
+    document.getElementById('lat-input').value = lat;
+    document.getElementById('lon-input').value = lon;
 
     // alarm.mp3 im Hintergrund vorladen
     fetch('DryGuard.mp3')
@@ -106,87 +153,107 @@
       .then(decoded => { alarmBuffer = decoded; })
       .catch(err => console.error("Fehler beim Vorladen der alarm.mp3:", err));
 
-    // Stummer Audioloop zum Wachhalten des iOS/Android-Audio-Kontexts
-    function unlockAudioSilent() {
-      if (isAudioUnlocked) return;
-      try {
-        const buffer = audioContext.createBuffer(1, 22050, 22050);
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
-        source.loop = true;
-        source.connect(audioContext.destination);
-        source.start(0);
-
-        if (audioContext.state === 'suspended') audioContext.resume();
-        isAudioUnlocked = true;
-      } catch (e) {
-        console.warn("Audio-Unlock fehlgeschlagen:", e);
+    // Audio-Kontext entsperren, falls Browser ihn blockiert
+    function initAudioUserInteraction() {
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
       }
+      isAudioEnabled = true;
     }
 
-    function toggleWatcher() {
-      const btn = document.getElementById('toggle-btn');
-      const statusBox = document.getElementById('status-box');
+    // Standort über Eingabefelder aktualisieren
+    function updateCoordinates(event) {
+      event.stopPropagation(); // Verhindert Auslösen des Body-Clicks
+      const newLat = parseFloat(document.getElementById('lat-input').value);
+      const newLon = parseFloat(document.getElementById('lon-input').value);
 
-      if (!isRunning) {
-        // --- EINSCHALTEN ---
-        unlockAudioSilent();
-        isAudioEnabled = true;
-        isRunning = true;
-
-        btn.textContent = "Überwachung aktiv ✓";
-        btn.classList.add('active');
-        statusBox.style.color = "#4CAF50";
-        statusBox.textContent = "Status: Alles trocken (läuft)";
-
+      if (!isNaN(newLat) && !isNaN(newLon)) {
+        lat = newLat;
+        lon = newLon;
+        document.getElementById('coords-display').textContent = `${lat}, ${lon}`;
         checkWeather();
-        watchInterval = setInterval(checkWeather, 300000); // Alle 5 Minuten
       } else {
-        // --- AUSSCHALTEN ---
-        clearInterval(watchInterval);
-        isRunning = false;
-        isAudioEnabled = false;
-
-        btn.textContent = "Überwachung & Ton aktivieren";
-        btn.classList.remove('active');
-        statusBox.style.color = "#ff9800";
-        statusBox.textContent = "Status: Pausiert";
+        alert("Bitte gültige Koordinaten eingeben.");
       }
     }
+
+    // Automatischer Start beim Laden der App
+    window.onload = function() {
+      initAudioUserInteraction();
+      checkWeather();
+      watchInterval = setInterval(checkWeather, 3 * 60 * 1000); // Alle 3 Minuten prüfen
+    };
 
     function checkWeather() {
       const statusBox = document.getElementById('status-box');
+      const rainTimeInfo = document.getElementById('rain-time-info');
       const details = document.getElementById('details');
       const now = new Date().toLocaleTimeString();
 
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=precipitation,rain`;
+      // Open-Meteo API mit minütlicher Niederschlagsprognose
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&minutely_15=precipitation&timezone=Europe%2FBerlin`;
 
       fetch(url)
         .then(response => response.json())
         .then(data => {
-          const currentRain = data.current.precipitation; // Niederschlag in mm
-          details.textContent = `Letzter Check: ${now} (Niederschlag: ${currentRain} mm)`;
+          details.textContent = `Letzter Check: ${now}`;
 
-          if (currentRain > 0) {
-            document.body.classList.add('raining');
-            statusBox.style.color = "#fff";
-            statusBox.textContent = "🚨 REGEN ERKANNT! WÄSCHE REIN!";
-            playAlarmSound();
-          } else {
-            document.body.classList.remove('raining');
-            statusBox.style.color = "#4CAF50";
-            statusBox.textContent = "Status: Alles trocken ☀️";
+          if (data && data.minutely_15) {
+            evaluateRainForecast(data.minutely_15);
           }
         })
         .catch(error => {
           console.error("Fehler beim Wetter-Abruf:", error);
-          details.textContent = `Letzter Check: ${now} (Fehler beim Laden)`;
+          details.textContent = `Letzter Check: ${now} (Fehler)`;
         });
     }
 
-    function playAlarmSound() {
-      if (!isAudioEnabled) return;
+    function evaluateRainForecast(minutelyData) {
+      const times = minutelyData.time;
+      const precip = minutelyData.precipitation;
+      const now = new Date();
+      
+      let rainExpectedTime = null;
 
+      // Suche nach dem ersten Regenzeitpunkt in der Zukunft
+      for (let i = 0; i < times.length; i++) {
+        const forecastTime = new Date(times[i]);
+        if (forecastTime > now && precip[i] > 0) {
+          rainExpectedTime = forecastTime;
+          break;
+        }
+      }
+
+      const statusBox = document.getElementById('status-box');
+      const rainTimeInfo = document.getElementById('rain-time-info');
+
+      if (rainExpectedTime) {
+        const diffMs = rainExpectedTime - now;
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        const timeString = rainExpectedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        rainTimeInfo.textContent = `Voraussichtlich Regen um ${timeString} Uhr`;
+
+        // Alarm auslösen, wenn Regen in den nächsten 5 Minuten bevorsteht oder bereits einsetzt
+        if (diffMins <= 5 && diffMins >= 0) {
+          document.body.classList.add('raining');
+          statusBox.style.color = "#fff";
+          statusBox.textContent = `🚨 REGEN IN CA. ${diffMins} MIN!`;
+          playAlarmSound();
+        } else {
+          document.body.classList.remove('raining');
+          statusBox.style.color = "#4CAF50";
+          statusBox.textContent = "Überwachung aktiv (Trocken)";
+        }
+      } else {
+        document.body.classList.remove('raining');
+        rainTimeInfo.textContent = "Kein Regen in nächster Zeit erwartet ☀️";
+        statusBox.style.color = "#4CAF50";
+        statusBox.textContent = "Überwachung aktiv (Trocken)";
+      }
+    }
+
+    function playAlarmSound() {
       if (audioContext.state === 'suspended') audioContext.resume();
       
       if (alarmBuffer) {
@@ -195,7 +262,7 @@
         source.connect(audioContext.destination);
         source.start(0);
       } else {
-        // Fallback falls MP3 noch lädt
+        // Fallback falls Puffer noch lädt
         new Audio('DryGuard.mp3').play().catch(() => {});
       }
     }
