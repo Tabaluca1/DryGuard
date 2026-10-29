@@ -70,17 +70,6 @@
       border-radius: 4px;
       font-size: 12px;
     }
-    /* Entfernt die Updown-Pfeile bei number-Inputs für Chrome, Safari, Edge, Opera */
-    input::-webkit-outer-spin-button,
-    input::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-    /* Entfernt die Updown-Pfeile für Firefox */
-    input[type=number] {
-      -moz-appearance: textfield;
-    }
-
     button {
       background-color: #1b5e20;
       color: white;
@@ -135,8 +124,8 @@
       <!-- Verstecktes Fenster zum Anpassen der Koordinaten -->
       <div id="coords-edit-modal" class="hidden" style="margin-top: 10px; border-top: 1px solid #444; padding-top: 8px;">
         <div class="coords-inputs">
-          <input type="number" step="0.0001" id="lat-input" placeholder="Lat">
-          <input type="number" step="0.0001" id="lon-input" placeholder="Lon">
+          <input type="text" inputmode="decimal" id="lat-input" placeholder="Lat">
+          <input type="text" inputmode="decimal" id="lon-input" placeholder="Lon">
         </div>
         <button onclick="updateCoordinates(event)">Standort speichern</button>
       </div>
@@ -144,7 +133,7 @@
   </div>
 
   <footer>
-    DryGuard - Version 1.2
+    DryGuard - Version 1.3
   </footer>
 
   <script>
@@ -184,13 +173,24 @@
       event.stopPropagation();
       const modal = document.getElementById('coords-edit-modal');
       modal.classList.toggle('hidden');
+      
+      // Werte beim Öffnen reinladen und sicherstellen, dass Punkte statt Kommas verwendet werden
+      if (!modal.classList.contains('hidden')) {
+        document.getElementById('lat-input').value = lat.toString().replace(',', '.');
+        document.getElementById('lon-input').value = lon.toString().replace(',', '.');
+      }
     }
 
     // Standort über Eingabefelder aktualisieren und Fenster schließen
     function updateCoordinates(event) {
       event.stopPropagation(); // Verhindert Auslösen des Body-Clicks
-      const newLat = parseFloat(document.getElementById('lat-input').value);
-      const newLon = parseFloat(document.getElementById('lon-input').value);
+      
+      // Kommas automatisch durch Punkte ersetzen
+      let latValStr = document.getElementById('lat-input').value.replace(',', '.');
+      let lonValStr = document.getElementById('lon-input').value.replace(',', '.');
+
+      const newLat = parseFloat(latValStr);
+      const newLon = parseFloat(lonValStr);
 
       if (!isNaN(newLat) && !isNaN(newLon)) {
         lat = newLat;
