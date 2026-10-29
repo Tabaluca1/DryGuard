@@ -70,6 +70,17 @@
       border-radius: 4px;
       font-size: 12px;
     }
+    /* Entfernt die Updown-Pfeile bei number-Inputs für Chrome, Safari, Edge, Opera */
+    input::-webkit-outer-spin-button,
+    input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    /* Entfernt die Updown-Pfeile für Firefox */
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+
     button {
       background-color: #1b5e20;
       color: white;
@@ -133,7 +144,7 @@
   </div>
 
   <footer>
-    DryGuard - Version 1.1
+    DryGuard - Version 1.2
   </footer>
 
   <script>
