@@ -13,7 +13,6 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      /* Wichtig: min-height sorgt dafür, dass die Seite mindestens den Bildschirm ausfüllt */
       min-height: 100vh;
       margin: 0;
       text-align: center;
@@ -31,7 +30,6 @@
       box-shadow: 0 8px 24px rgba(0,0,0,0.5);
       max-width: 360px;
       width: 90%;
-      /* Zentriert die Karte vertikal, wenn Platz ist */
       margin: auto 0;
     }
     h1 {
@@ -97,7 +95,6 @@
     footer {
       font-size: 11px;
       color: #666;
-      /* Das ist der Trick: Schiebt den Footer ganz nach unten, lässt den Abstand aber flexibel */
       margin-top: auto;
       padding-top: 10px;
     }
@@ -139,7 +136,7 @@
   </div>
 
   <footer>
-    DryGuard - Version 1.4
+    DryGuard - Version 1.5
   </footer>
 
   <script>
@@ -180,7 +177,6 @@
       const modal = document.getElementById('coords-edit-modal');
       modal.classList.toggle('hidden');
       
-      // Werte beim Öffnen reinladen und sicherstellen, dass Punkte statt Kommas verwendet werden
       if (!modal.classList.contains('hidden')) {
         document.getElementById('lat-input').value = lat.toString().replace(',', '.');
         document.getElementById('lon-input').value = lon.toString().replace(',', '.');
@@ -189,9 +185,7 @@
 
     // Standort über Eingabefelder aktualisieren und Fenster schließen
     function updateCoordinates(event) {
-      event.stopPropagation(); // Verhindert Auslösen des Body-Clicks
-      
-      // Kommas automatisch durch Punkte ersetzen
+      event.stopPropagation();
       let latValStr = document.getElementById('lat-input').value.replace(',', '.');
       let lonValStr = document.getElementById('lon-input').value.replace(',', '.');
 
@@ -209,11 +203,11 @@
       }
     }
 
-    // Automatischer Start beim Laden der App
+    // Automatischer Start beim Laden der App (jede 1 Minute prüfen)
     window.onload = function() {
       initAudioUserInteraction();
       checkWeather();
-      watchInterval = setInterval(checkWeather, 3 * 60 * 1000); // Alle 3 Minuten prüfen
+      watchInterval = setInterval(checkWeather, 60 * 1000); // Exakt jede Minute
     };
 
     function checkWeather() {
@@ -244,8 +238,21 @@
       const now = new Date();
       
       let rainExpectedTime = null;
+      let isRainingRightNow = false;
 
-      // Suche nach dem ersten Regenzeitpunkt in der Zukunft
+      // 1. Prüfen, ob es JETZT im allerersten passenden Zeitfenster schon regnet
+      for (let i = 0; i < times.length; i++) {
+        const forecastTime = new Date(times[i]);
+        // Wenn der Zeitpunkt sehr nah an jetzt ist (oder vor max. 2 Minuten begann) und Niederschlag > 0
+        const diffMinsFromNow = (forecastTime - now) / (1000 * 60);
+        
+        if (diffMinsFromNow >= -2 && diffMinsFromNow <= 2 && precip[i] > 0) {
+          isRainingRightNow = true;
+          break;
+        }
+      }
+
+      // 2. Suche nach dem ersten Regenzeitpunkt in der nahen Zukunft für die Vorwarnung
       for (let i = 0; i < times.length; i++) {
         const forecastTime = new Date(times[i]);
         if (forecastTime > now && precip[i] > 0) {
@@ -257,14 +264,22 @@
       const statusBox = document.getElementById('status-box');
       const rainTimeInfo = document.getElementById('rain-time-info');
 
-      if (rainExpectedTime) {
+      if (isRainingRightNow) {
+        // Fall A: Es regnet JETZT AKTUELL
+        document.body.classList.add('raining');
+        statusBox.style.color = "#fff";
+        statusBox.textContent = "🚨 REGEN LÄUFT BEREITS! WÄSCHE REIN!";
+        rainTimeInfo.textContent = "Aktiv Niederschlag detektiert!";
+        playAlarmSound();
+      } else if (rainExpectedTime) {
+        // Fall B: Regen kommt in Kürze
         const diffMs = rainExpectedTime - now;
         const diffMins = Math.floor(diffMs / (1000 * 60));
         const timeString = rainExpectedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         rainTimeInfo.textContent = `Voraussichtlich Regen um ${timeString} Uhr`;
 
-        // Alarm auslösen, wenn Regen in den nächsten 5 Minuten bevorsteht oder bereits einsetzt
+        // Alarm auslösen, wenn Regen in den nächsten 5 Minuten bevorsteht
         if (diffMins <= 5 && diffMins >= 0) {
           document.body.classList.add('raining');
           statusBox.style.color = "#fff";
@@ -276,6 +291,7 @@
           statusBox.textContent = "Überwachung aktiv (Trocken)";
         }
       } else {
+        // Fall C: Alles trocken, kein Regen in Sicht
         document.body.classList.remove('raining');
         rainTimeInfo.textContent = "Kein Regen in nächster Zeit erwartet ☀️";
         statusBox.style.color = "#4CAF50";
@@ -292,7 +308,6 @@
         source.connect(audioContext.destination);
         source.start(0);
       } else {
-        // Fallback falls Puffer noch lädt
         new Audio('DryGuard.mp3').play().catch(() => {});
       }
     }
