@@ -13,12 +13,13 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: space-between;
+      /* Wichtig: min-height sorgt dafür, dass die Seite mindestens den Bildschirm ausfüllt */
       min-height: 100vh;
       margin: 0;
       text-align: center;
       transition: background-color 0.5s ease;
-      padding: 20px 0;
+      padding: 15px;
+      box-sizing: border-box;
     }
     body.raining {
       background-color: #b71c1c; /* Rot bei Regen */
@@ -30,6 +31,8 @@
       box-shadow: 0 8px 24px rgba(0,0,0,0.5);
       max-width: 360px;
       width: 90%;
+      /* Zentriert die Karte vertikal, wenn Platz ist */
+      margin: auto 0;
     }
     h1 {
       font-size: 22px;
@@ -94,6 +97,9 @@
     footer {
       font-size: 11px;
       color: #666;
+      /* Das ist der Trick: Schiebt den Footer ganz nach unten, lässt den Abstand aber flexibel */
+      margin-top: auto;
+      padding-top: 10px;
     }
     .hidden {
       display: none !important;
@@ -121,7 +127,7 @@
         <button onclick="toggleCoordsEdit(event)" style="width: auto; padding: 6px 12px; font-size: 11px; margin-top: 0; background-color: #333;">Ändern</button>
       </div>
       
-      <!-- Verstecktes Fenster zum Anpassen der Koordinaten -->
+      <!-- Verstecktes Fenster zum Anpassen der Koordinaten (mit Punkt statt Komma Logik) -->
       <div id="coords-edit-modal" class="hidden" style="margin-top: 10px; border-top: 1px solid #444; padding-top: 8px;">
         <div class="coords-inputs">
           <input type="text" inputmode="decimal" id="lat-input" placeholder="Lat">
@@ -133,7 +139,7 @@
   </div>
 
   <footer>
-    DryGuard - Version 1.3
+    DryGuard - Version 1.0
   </footer>
 
   <script>
