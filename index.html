@@ -56,11 +56,6 @@
       font-size: 12px;
       text-align: left;
     }
-    .coords-box label {
-      display: block;
-      color: #888;
-      margin-bottom: 4px;
-    }
     .coords-inputs {
       display: flex;
       gap: 6px;
@@ -100,6 +95,9 @@
       font-size: 11px;
       color: #666;
     }
+    .hidden {
+      display: none !important;
+    }
   </style>
 </head>
 <body onclick="initAudioUserInteraction()">
@@ -113,20 +111,29 @@
     
     <div class="rain-details" id="details">Letzter Check: Lädt...</div>
 
-    <!-- Koordinaten-Einstellung -->
+    <!-- Koordinaten-Einstellung mit Ein/Aus-Schalter -->
     <div class="coords-box">
-      <label>Aktiver Standort (Lat / Lon):</label>
-      <div id="coords-display" style="font-family: monospace; color: #ccc;">53.5606, 9.9439</div>
-      <div class="coords-inputs">
-        <input type="number" step="0.0001" id="lat-input" placeholder="Lat">
-        <input type="number" step="0.0001" id="lon-input" placeholder="Lon">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <span style="color: #888; display: block; font-size: 11px;">Aktiver Standort (Lat / Lon):</span>
+          <span id="coords-display" style="font-family: monospace; color: #ccc; font-size: 13px;">53.5606, 9.9439</span>
+        </div>
+        <button onclick="toggleCoordsEdit(event)" style="width: auto; padding: 6px 12px; font-size: 11px; margin-top: 0; background-color: #333;">Ändern</button>
       </div>
-      <button onclick="updateCoordinates(event)">Standort übernehmen</button>
+      
+      <!-- Verstecktes Fenster zum Anpassen der Koordinaten -->
+      <div id="coords-edit-modal" class="hidden" style="margin-top: 10px; border-top: 1px solid #444; padding-top: 8px;">
+        <div class="coords-inputs">
+          <input type="number" step="0.0001" id="lat-input" placeholder="Lat">
+          <input type="number" step="0.0001" id="lon-input" placeholder="Lon">
+        </div>
+        <button onclick="updateCoordinates(event)">Standort speichern</button>
+      </div>
     </div>
   </div>
 
   <footer>
-    DryGuard - Version 1.0
+    DryGuard - Version 1.1
   </footer>
 
   <script>
@@ -161,7 +168,14 @@
       isAudioEnabled = true;
     }
 
-    // Standort über Eingabefelder aktualisieren
+    // Ein- und Ausschalten des Koordinaten-Fensters
+    function toggleCoordsEdit(event) {
+      event.stopPropagation();
+      const modal = document.getElementById('coords-edit-modal');
+      modal.classList.toggle('hidden');
+    }
+
+    // Standort über Eingabefelder aktualisieren und Fenster schließen
     function updateCoordinates(event) {
       event.stopPropagation(); // Verhindert Auslösen des Body-Clicks
       const newLat = parseFloat(document.getElementById('lat-input').value);
@@ -171,6 +185,7 @@
         lat = newLat;
         lon = newLon;
         document.getElementById('coords-display').textContent = `${lat}, ${lon}`;
+        document.getElementById('coords-edit-modal').classList.add('hidden');
         checkWeather();
       } else {
         alert("Bitte gültige Koordinaten eingeben.");
@@ -185,8 +200,6 @@
     };
 
     function checkWeather() {
-      const statusBox = document.getElementById('status-box');
-      const rainTimeInfo = document.getElementById('rain-time-info');
       const details = document.getElementById('details');
       const now = new Date().toLocaleTimeString();
 
